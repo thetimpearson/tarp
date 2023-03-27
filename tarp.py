@@ -1,10 +1,46 @@
+import requests, json, platform, urllib3
+import pandas as pd
+import numpy as np
+import re, ssl, os
+from flask import Flask, request, render_template, flash
+from base_modules.base_settings import basic_settings, email_settings
 
-import requests, json
+# Set to True if you do not want to email the group
+dry_run = False
+email = True
+print('DryRun is set to {}'.format(dry_run))
+
+log_name = 'INSERT_LOG_NAME'
+# -----------Settings based on device running on--------------------------
+device = platform.uname()[1]  # Gets the Device name the script is running on
+logger, proxies, proxyAuth, onServer = basic_settings(log_name, device)  # Gets the basic settings that most scripts use
+if email:
+    CC, EMAIL_MATCH = email_settings(dry_run)
+    SUBJECT_LINE = 'Insert Subject Line'
 
 
+# -------------------------------------------------
+# Flask constructor
+app = Flask(__name__)
 
 
-# --------------Base things for all Prisma Cloud requests------------------
+# A decorator used to tell the application
+# which URL is associated function
+@app.route('/', methods=["GET", "POST"])
+def vuln_lookup():
+    if request.method == "POST":
+        # getting input with name = fname in HTML form
+        focus_cve = request.form.get("focus_cve")
+        focus_cve = focus_cve.upper()
+        pattern = re.compile("CVE-\d{4}-\d{4,7}")
+        if pattern.match(focus_cve):
+            cve_info = cve_main(focus_cve)
+        else:
+            cve_info = 'Please use the correct format for looking up a CVE <br> i.e. CVE-2022-42889 <br><br> You will need to refresh or hit back'
+        return cve_info
+    return render_template("form.html")
+
+
 def cisa_ka(cve):
     url = 'https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json'
     payload = ''
@@ -21,7 +57,7 @@ def cisa_ka(cve):
         if item['cveID'] == cve:
             exp_avail = True
             break
-   return exp_avail
+    return exp_avail
 
 
 def cvss(cve_id):
@@ -91,10 +127,19 @@ def adjust_score(cvss_bin, epss_bin, exp_bin):
     return w_avg, f_sev
 
 
-def main():
-    # token = getToken()
-    cve = input("Enter CVE:  ")
-    cve = str.upper(cve)
+def bin_to_sev(epss_bin):
+    if epss_bin == 4:
+        epss_sev = "Critical"
+    elif epss_bin == 3:
+        epss_sev = "High"
+    elif epss_bin == 3:
+        epss_sev = "Medium"
+    else:
+        epss_sev = "Low"
+    return epss_sev
+
+
+def cve_main(cve):
     # cvss('CVE-2022-1471')
     cvss_score, cvss_sev = cvss(cve)
     print('CVE: {}'.format(cve), 'CVE Score: {}'.format(cvss_score), 'CVE Severity: {}'.format(cvss_sev), sep='\n')
@@ -105,10 +150,16 @@ def main():
     print("Known Exploit Available:  {}".format(exp_avail))
     epss_prob = float(epss(cve))
     cvss_bin, epss_bin = bin_the_things(cvss_sev, epss_prob)
+    epss_sev = bin_to_sev(epss_bin)
     print("CVSS Bin: {}".format(cvss_bin), "EPSS Bin:  {}".format(epss_bin))
     w_avg, f_sev = adjust_score(cvss_bin, epss_bin, exp_bin)
     print("Weighted Average Score:  {}".format(w_avg), "Final Severity:  {}".format(f_sev), sep='\n')
+    assess_another = '<a href=http://127.0.0.1:5000/>Assess Another CVE</a>'
+    orig_info = '<h2>CVE: {}</h2>'.format(cve) + '' + 'CVE Score: {}'.format(cvss_score) + ' | ' + 'CVE Severity: {} ({})'.format(cvss_sev, cvss_bin) + ' | ' + "EPSS Probability:  {}".format(epss_prob) + ' | ' + "EPSS Severity:  {} ({})".format(epss_sev, epss_bin) + ' | ' + "Exploit Available: {}".format(exp_avail)
+    cve_info = "<b>Weighted Average Score:</b>  {}".format(w_avg) + '<br>' + "<b>Final Severity:</b>  {}".format(f_sev)
+    ret_data = orig_info + '<br><h2>Reassessed Vulnerability Rating</h2>' + cve_info + '<br><br>' + assess_another
+    return ret_data
 
 
 if __name__ == "__main__":
-    main()
+    app.run(host='0.0.0.0', port=5000)
