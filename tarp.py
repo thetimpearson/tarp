@@ -3,23 +3,7 @@ import pandas as pd
 import numpy as np
 import re, ssl, os
 from flask import Flask, request, render_template, flash
-from base_modules.base_settings import basic_settings, email_settings
 
-# Set to True if you do not want to email the group
-dry_run = False
-email = True
-print('DryRun is set to {}'.format(dry_run))
-
-log_name = 'INSERT_LOG_NAME'
-# -----------Settings based on device running on--------------------------
-device = platform.uname()[1]  # Gets the Device name the script is running on
-logger, proxies, proxyAuth, onServer = basic_settings(log_name, device)  # Gets the basic settings that most scripts use
-if email:
-    CC, EMAIL_MATCH = email_settings(dry_run)
-    SUBJECT_LINE = 'Insert Subject Line'
-
-
-# -------------------------------------------------
 # Flask constructor
 app = Flask(__name__)
 
