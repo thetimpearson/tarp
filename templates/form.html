@@ -1,0 +1,7 @@
+<h1>T.A.R.P</h1>
+<h3>Tims Assessed Risk Process</h3>
+<form action="{{url_for("vuln_lookup")}}" method="post">
+  <label for="cve">CVE:</label>
+  <input type="text" id="cve" name="focus_cve" placeholder="CVE-2022-43889">
+  
+  <button type="submit">Submit</button>
